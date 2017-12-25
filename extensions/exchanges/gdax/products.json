@@ -68,13 +68,13 @@
     "currency": "EUR",
     "min_size": "0.0001",
     "max_size": "250",
-    "increment": "0.01",
+    "increment": "0.0001",
     "label": "BTC/EUR"
   },
   {
     "asset": "BTC",
     "currency": "USD",
-    "min_size": "0.0001",
+    "min_size": "0.001",
     "max_size": "250",
     "increment": "0.01",
     "label": "BTC/USD"
