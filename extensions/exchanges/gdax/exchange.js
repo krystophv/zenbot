@@ -29,8 +29,34 @@ module.exports = function container (get, set, clear) {
       websocket_client[product_id].on('open', () => {
         console.log('websocket connection to '+product_id+' opened')
       })
+
       websocket_client[product_id].on('message', (message) => {
+        // all messages with user_id are related to trades for current authenticated user
+        if(message.user_id){
+          switch (message.type) {
+          case 'open':
+            handleOrderOpen(message)
+            break
+          case 'done':
+            handleOrderDone(message)
+            break
+          case 'change':
+            handleOrderChange(message)
+            break
+          case 'match':
+            handleOrderMatch(message)
+            break
+          default:
+            break
+          }
+        }
         switch (message.type) {
+        case 'open':
+          break
+        case 'done':
+          break
+        case 'change':
+          break
         case 'match':
           handleTrade(message, product_id)
           break
@@ -78,6 +104,49 @@ module.exports = function container (get, set, clear) {
     }, 10000)
   }
 
+  function handleOrderOpen(update) {
+    var cached_order = orders['~'+update.order_id]
+    if(cached_order){
+      cached_order.status = 'open'
+    } else {
+      orders['~'+update.order_id] = {
+        id: update.order_id,
+        price: update.price,
+        size: update.remaining_size,
+        product_id: update.product_id,
+        side: update.side,
+        status: 'open',
+        settled: false,
+        filled_size: 0
+      }
+    }
+  }
+
+  function handleOrderDone(update) {
+    var cached_order = orders['~'+update.order_id]
+    if(cached_order){
+      cached_order.status = 'done'
+      cached_order.done_at = update.time
+      cached_order.done_reason = update.reason,
+      cached_order.settled = true
+    }
+  }
+
+  function handleOrderChange(update) {
+    var cached_order = orders['~'+update.order_id]
+    if(cached_order && update.new_size){
+      cached_order.size = update.new_size
+    }
+  }
+
+  function handleOrderMatch(update) {
+    var cached_order = orders['~'+update.maker_order_id] || orders['~'+update.taker_order_id]
+    if(cached_order){
+      cached_order.price = update.price
+      cached_order.filled_size = (parseFloat(cached_order.filled_size) + update.size).toString()
+    }
+  }
+
   function handleTrade(trade, product_id) {
     var cache = websocket_cache[product_id]
     cache.trades.push(trade)
@@ -94,6 +163,7 @@ module.exports = function container (get, set, clear) {
     historyScan: 'backward',
     makerFee: 0,
     takerFee: 0.3,
+    backfillRateLimit: 350,
 
     getProducts: function () {
       return require('./products.json')
@@ -135,6 +205,7 @@ module.exports = function container (get, set, clear) {
         cache.trade_ids = cache.trade_ids.slice(fromIndex)
         return
       }
+      console.log('getproducttrades call')
       client.getProductTrades(args, function (err, resp, body) {
         if (!err) err = statusErr(resp, body)
         if (err) return retry('getTrades', func_args, err)
@@ -155,6 +226,7 @@ module.exports = function container (get, set, clear) {
     getBalance: function (opts, cb) {
       var func_args = [].slice.call(arguments)
       var client = authedClient()
+      //console.log('getaccounts call')
       client.getAccounts(function (err, resp, body) {
         if (!err) err = statusErr(resp, body)
         if (err) return retry('getBalance', func_args, err)
@@ -192,6 +264,7 @@ module.exports = function container (get, set, clear) {
       }
       var func_args = [].slice.call(arguments)
       var client = publicClient(opts.product_id)
+      console.log('getproductticker call')
       client.getProductTicker(function (err, resp, body) {
         if (!err) err = statusErr(resp, body)
         if (err) return retry('getQuote', func_args, err)
@@ -205,6 +278,7 @@ module.exports = function container (get, set, clear) {
     cancelOrder: function (opts, cb) {
       var func_args = [].slice.call(arguments)
       var client = authedClient()
+      console.log('cancelorder call')
       client.cancelOrder(opts.order_id, function (err, resp, body) {
         if (body && (body.message === 'Order already done' || body.message === 'order not found')) return cb()
         if (!err) err = statusErr(resp, body)
@@ -229,6 +303,7 @@ module.exports = function container (get, set, clear) {
         opts.time_in_force = 'GTT'
       }
       delete opts.order_type
+      console.log('buy call')
       client.buy(opts, function (err, resp, body) {
         if (body && body.message === 'Insufficient funds') {
           var order = {
@@ -239,7 +314,6 @@ module.exports = function container (get, set, clear) {
         }
         if (!err) err = statusErr(resp, body)
         if (err) return retry('buy', func_args, err)
-        orders['~' + body.id] = body
         cb(null, body)
       })
     },
@@ -260,6 +334,7 @@ module.exports = function container (get, set, clear) {
         opts.time_in_force = 'GTT'
       }
       delete opts.order_type
+      console.log('sell call')
       client.sell(opts, function (err, resp, body) {
         if (body && body.message === 'Insufficient funds') {
           var order = {
@@ -270,14 +345,19 @@ module.exports = function container (get, set, clear) {
         }
         if (!err) err = statusErr(resp, body)
         if (err) return retry('sell', func_args, err)
-        orders['~' + body.id] = body
         cb(null, body)
       })
     },
 
     getOrder: function (opts, cb) {
+      var cached_order = orders['~'+opts.order_id]
+      if(cached_order){
+        cb(null, cached_order)
+        return
+      }
       var func_args = [].slice.call(arguments)
       var client = authedClient()
+      console.log('getorder call')
       client.getOrder(opts.order_id, function (err, resp, body) {
         if (!err && resp.statusCode !== 404) err = statusErr(resp, body)
         if (err) return retry('getOrder', func_args, err)
