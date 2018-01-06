@@ -84,7 +84,7 @@
     "sosa_mongo": "^1.0.3",
     "stats-lite": "2.1.0",
     "style-loader": "^0.19.1",
-    "talib": "^1.0.3",
+    "talib": "krystophv/node-talib",
     "timebucket": "^0.4.0",
     "timeseries-analysis": "krystophv/timeseries-analysis",
     "trend": "0.3.0",
