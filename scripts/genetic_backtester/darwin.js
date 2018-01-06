@@ -4,7 +4,7 @@
  * Clifford Roche <clifford.roche@gmail.com>
  * 07/01/2017
  *
- * Example: ./darwin.js --selector="bitfinex.ETH-USD" --days=10 --currency_capital=5000 --use_strategies=(all|macd,trend_ema)
+ * Example: ./darwin.js --selector="bitfinex.ETH-USD" --days="10" --currency_capital="5000" --use_strategies="all | macd,trend_ema,etc" --population="101" --population_data="simulations/generation_data_NUMBERS_gen_X.json"
  */
 
 let shell = require('shelljs');
@@ -39,7 +39,7 @@ let NEUTRAL_RATE_AUTO = false;
 let iterationCount = 0;
 
 let runCommand = (taskStrategyName, phenotype, cb) => {
-  let commonArgs = `--strategy=${taskStrategyName} --periodLength=${phenotype.periodLength} --min_periods=${phenotype.min_periods} --markup_pct=${phenotype.markup_pct} --order_type=${phenotype.order_type} --sell_stop_pct=${phenotype.sell_stop_pct} --buy_stop_pct=${phenotype.buy_stop_pct} --profit_stop_enable_pct=${phenotype.profit_stop_enable_pct} --profit_stop_pct=${phenotype.profit_stop_pct}`;
+  let commonArgs = `--strategy=${taskStrategyName} --period_length=${phenotype.period_length} --min_periods=${phenotype.min_periods} --markup_pct=${phenotype.markup_pct} --order_type=${phenotype.order_type} --sell_stop_pct=${phenotype.sell_stop_pct} --buy_stop_pct=${phenotype.buy_stop_pct} --profit_stop_enable_pct=${phenotype.profit_stop_enable_pct} --profit_stop_pct=${phenotype.profit_stop_pct}`;
   let strategyArgs = {
     crossover_vwap: `--emalen1=${phenotype.emalen1}  --vwap_length=${phenotype.vwap_length} --vwap_max=${phenotype.vwap_max} --markdown_buy_pct=${phenotype.markdown_buy_pct} --markup_sell_pct=${phenotype.markup_sell_pct}`,
     trendline: `--lastpoints=${phenotype.lastpoints}  --avgpoints=${phenotype.avgpoints} --lastpoints2=${phenotype.lastpoints2} --avgpoints2=${phenotype.avgpoints2} --markdown_buy_pct=${phenotype.markdown_buy_pct} --markup_sell_pct=${phenotype.markup_sell_pct}`,
@@ -120,6 +120,8 @@ let processOutput = output => {
   let losses        = wlMatch !== null ? parseInt(wlMatch[2]) : 0;
   let errorRate     = errMatch !== null ? parseInt(errMatch[1]) : 0;
   let days = parseInt(params.days);
+  let start = parseInt(params.start);
+  let end = parseInt(params.end);
 
   let roi = roundp(
     ((endBalance - params.currency_capital) / params.currency_capital) * 100,
@@ -137,9 +139,20 @@ let processOutput = output => {
   delete r.population_data;
   delete r.sell_pct;
   delete r.start;
+  delete r.end;
   delete r.stats;
   delete r.use_strategies;
   delete r.verbose;
+
+  if (start) {
+    r.start = moment(start).format("YYYYMMDDhhmm");
+  }
+  if (end) {
+    r.end = moment(end).format("YYYYMMDDhhmm");
+  }
+  if (!start && !end && params.days) {
+    r.days = params.days;
+  }
 
   return {
     params: 'module.exports = ' + JSON.stringify(r),
@@ -150,7 +163,7 @@ let processOutput = output => {
     losses: losses,
     errorRate: parseFloat(errorRate),
     days: days,
-    periodLength: params.periodLength,
+    period_length: params.period_length,
     min_periods: params.min_periods,
     markup_pct: params.markup_pct,
     order_type: params.order_type,
@@ -200,12 +213,12 @@ let RangeFloat = (min, max) => {
   return r;
 };
 
-let RangePeriod = (min, max, periodLength) => {
+let RangePeriod = (min, max, period_length) => {
   var r = {
-    type: 'periodLength',
+    type: 'period_length',
     min: min,
     max: max,
-    periodLength: periodLength
+    period_length: period_length
   };
   return r;
 };
@@ -227,7 +240,7 @@ let RangeNeuralActivation = () => {
 let strategies = {
   crossover_vwap: {
     // -- common
-    periodLength: RangePeriod(1, 400, 'm'),
+    period_length: RangePeriod(1, 400, 'm'),
     min_periods: Range(1, 200),
     markdown_buy_pct: RangeFloat(-1, 5),
     markup_sell_pct: RangeFloat(-1, 5),
@@ -244,7 +257,7 @@ let strategies = {
   },
   cci_srsi: {
     // -- common
-    periodLength: RangePeriod(1, 120, 'm'),
+    period_length: RangePeriod(1, 120, 'm'),
     min_periods: Range(1, 200),
     markup_pct: RangeFloat(0, 5),
     order_type: RangeMakerTaker(),
@@ -267,7 +280,7 @@ let strategies = {
   },
   srsi_macd: {
     // -- common
-    periodLength: RangePeriod(1, 120, 'm'),
+    period_length: RangePeriod(1, 120, 'm'),
     min_periods: Range(1, 200),
     markup_pct: RangeFloat(0, 5),
     order_type: RangeMakerTaker(),
@@ -291,7 +304,7 @@ let strategies = {
   },
   macd: {
     // -- common
-    periodLength: RangePeriod(1, 120, 'm'),
+    period_length: RangePeriod(1, 120, 'm'),
     min_periods: Range(1, 200),
     markup_pct: RangeFloat(0, 5),
     order_type: RangeMakerTaker(),
@@ -311,7 +324,7 @@ let strategies = {
   },
   neural: {
     // -- common
-    periodLength: RangePeriod(1, 120, 'm'),
+    period_length: RangePeriod(1, 120, 'm'),
     min_periods: Range(1, 200),
     markup_pct: RangeFloat(0, 5),
     order_type: RangeMakerTaker(),
@@ -330,7 +343,7 @@ let strategies = {
   },
   rsi: {
     // -- common
-    periodLength: RangePeriod(1, 120, 'm'),
+    period_length: RangePeriod(1, 120, 'm'),
     min_periods: Range(1, 200),
     markup_pct: RangeFloat(0, 5),
     order_type: RangeMakerTaker(),
@@ -349,7 +362,7 @@ let strategies = {
   },
   sar: {
     // -- common
-    periodLength: RangePeriod(1, 120, 'm'),
+    period_length: RangePeriod(1, 120, 'm'),
     min_periods: Range(2, 100),
     markup_pct: RangeFloat(0, 5),
     order_type: RangeMakerTaker(),
@@ -364,7 +377,7 @@ let strategies = {
   },
   speed: {
     // -- common
-    periodLength: RangePeriod(1, 120, 'm'),
+    period_length: RangePeriod(1, 120, 'm'),
     min_periods: Range(1, 100),
     markup_pct: RangeFloat(0, 5),
     order_type: RangeMakerTaker(),
@@ -395,7 +408,7 @@ let strategies = {
   },
   trend_ema: {
     // -- common
-    periodLength: RangePeriod(1, 120, 'm'),
+    period_length: RangePeriod(1, 120, 'm'),
     min_periods: Range(1, 100),
     markup_pct: RangeFloat(0, 5),
     order_type: RangeMakerTaker(),
@@ -411,7 +424,7 @@ let strategies = {
   },
   trust_distrust: {
     // -- common
-    periodLength: RangePeriod(1, 120, 'm'),
+    period_length: RangePeriod(1, 120, 'm'),
     min_periods: Range(1, 100),
     markup_pct: RangeFloat(0, 5),
     order_type: RangeMakerTaker(),
@@ -430,7 +443,7 @@ let strategies = {
   },
   ta_macd: {
     // -- common
-    periodLength: RangePeriod(1, 120, 'm'),
+    period_length: RangePeriod(1, 120, 'm'),
     min_periods: Range(1, 200),
     markup_pct: RangeFloat(0, 5),
     order_type: RangeMakerTaker(),
@@ -451,7 +464,7 @@ let strategies = {
   },
   trendline: {
     // -- common
-    periodLength: RangePeriod(1, 400, 'm'),
+    period_length: RangePeriod(1, 400, 'm'),
     min_periods: Range(1, 200),
     markdown_buy_pct: RangeFloat(-1, 5),
     markup_sell_pct: RangeFloat(-1, 5),
@@ -469,7 +482,7 @@ let strategies = {
   },
   ta_ema: {
     // -- common
-    periodLength: RangePeriod(1, 120, 'm'),
+    period_length: RangePeriod(1, 120, 'm'),
     min_periods: Range(1, 100),
     markup_pct: RangeFloat(0, 5),
     order_type: RangeMakerTaker(),
@@ -578,10 +591,10 @@ var generateCommandParams = input => {
       if(key == "selector"){
         result = input[key].normalized + result;
       }
-      
+
       else result += " --"+key+"="+input[key];
     }
-    
+
   }
   return result;
 }
@@ -597,16 +610,16 @@ var saveGenerationData = function(csvFileName, jsonFileName, dataCSV, dataJSON, 
     callback(2);
   });
 }
-let generationCount = 1;
+let generationCount = 0;
 
 let simulateGeneration = () => {
-  console.log(`\n\n=== Simulating generation ${generationCount++} ===\n`);
+  console.log(`\n\n=== Simulating generation ${++generationCount} ===\n`);
 
   let days = argv.days;
   if (!days) {
     if (argv.start) {
       var start = moment(argv.start, "YYYYMMDDhhmm");
-      days = moment().diff(start, 'days');
+      days = Math.max(1, moment().diff(start, 'days'));
     }
     else {
       var end = moment(argv.end, "YYYYMMDDhhmm");
@@ -630,7 +643,7 @@ let simulateGeneration = () => {
 
     results.sort((a, b) => (a.fitness < b.fitness) ? 1 : ((b.fitness < a.fitness) ? -1 : 0));
 
-    let fieldsGeneral = ['selector', 'fitness', 'vsBuyHold', 'wlRatio', 'frequency', 'strategy', 'order_type', 'endBalance', 'buyHold', 'wins', 'losses', 'periodLength', 'min_periods', 'days', 'params'];
+    let fieldsGeneral = ['selector', 'fitness', 'vsBuyHold', 'wlRatio', 'frequency', 'strategy', 'order_type', 'endBalance', 'buyHold', 'wins', 'losses', 'period_length', 'min_periods', 'days', 'params'];
     let fieldNamesGeneral = ['Selector', 'Fitness', 'VS Buy Hold (%)', 'Win/Loss Ratio', '# Trades/Day', 'Strategy', 'Order Type', 'Ending Balance ($)', 'Buy Hold ($)', '# Wins', '# Losses', 'Period', 'Min Periods', '# Days', 'Full Parameters'];
 
     let dataCSV = json2csv({
@@ -641,7 +654,7 @@ let simulateGeneration = () => {
 
     let fileDate = Math.round(+new Date() / 1000);
     let csvFileName = `simulations/backtesting_${fileDate}.csv`;
-    
+
     let poolData = {};
     selectedStrategies.forEach(function(v) {
       poolData[v] = pools[v]['pool'].population();
@@ -652,13 +665,13 @@ let simulateGeneration = () => {
     var filesSaved = 0;
     saveGenerationData(csvFileName, jsonFileName, dataCSV, dataJSON, (id)=>{
       filesSaved++;
-      if(filesSaved == 2){        
+      if(filesSaved == 2){
         console.log(`\n\nGeneration's Best Results`);
         selectedStrategies.forEach((v)=> {
-          let best = pools[v]['pool'].best();      
+          let best = pools[v]['pool'].best();
           if(best.sim){
             console.log(`\t(${v}) Sim Fitness ${best.sim.fitness}, VS Buy and Hold: ${best.sim.vsBuyHold} End Balance: ${best.sim.endBalance}, Wins/Losses ${best.sim.wins}/${best.sim.losses}.`);
-            
+
           } else {
             console.log(`\t(${v}) Result Fitness ${results[0].fitness}, VS Buy and Hold: ${results[0].vsBuyHold}, End Balance: ${results[0].endBalance}, Wins/Losses ${results[0].wins}/${results[0].losses}.`);
           }
@@ -666,19 +679,19 @@ let simulateGeneration = () => {
           // prepare command snippet from top result for this strat
           let prefix = './zenbot.sh sim ';
           let bestCommand = generateCommandParams(results[0]);
-          
+
           bestCommand = prefix + bestCommand;
-          bestCommand = bestCommand + ' --days=' + argv.days + ' --asset_capital=' + argv.asset_capital + ' --currency_capital=' + argv.currency_capital;
-          
+          bestCommand = bestCommand + ' --asset_capital=' + argv.asset_capital + ' --currency_capital=' + argv.currency_capital;
+
           console.log(bestCommand + '\n');
-            
+
           let nextGen = pools[v]['pool'].evolve();
         });
-        
+
         simulateGeneration();
       }
     });
- 
+
   });
 };
 
