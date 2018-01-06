@@ -29,3 +29,4 @@ models/*.html
 temp.html
 logs
 .sync
+dist/*
