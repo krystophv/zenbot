@@ -65,7 +65,10 @@ module.exports = function container (get, set, clear) {
         }
       })
       websocket_client[product_id].on('error', (err) => {
-        console.log(err)
+        console.error('websocket error: ', err, 'restarting websocket connection')
+        websocket_client[product_id] = undefined
+        websocket_cache[product_id] = undefined
+        websocketClient(product_id)
       })
       websocket_client[product_id].on('close', () => {
         console.error('websocket connection to '+product_id+' closed, attempting reconnect')
