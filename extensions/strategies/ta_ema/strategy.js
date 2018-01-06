@@ -17,6 +17,10 @@ module.exports = function container (get, set, clear) {
     },
 
     calculate: function (s) {
+      
+    },
+
+    onPeriod: function (s, cb) {
       get('lib.ta_ema')(s, 'trend_ema', s.options.trend_ema)
       if (s.options.oversold_rsi) {
         // sync RSI display with oversold RSI periods
@@ -36,9 +40,6 @@ module.exports = function container (get, set, clear) {
       else {
         s.period.trend_ema_stddev = s.options.neutral_rate
       }
-    },
-
-    onPeriod: function (s, cb) {
       if (!s.in_preroll && typeof s.period.oversold_rsi === 'number') {
         if (s.oversold) {
           s.oversold = false
