@@ -17,6 +17,7 @@ module.exports = function container (get, set, clear) {
     if (!websocket_client[product_id]) {
       // OrderbookSync extends WebsocketClient and subscribes to the 'full' channel, so we can use it like one
       var auth = null
+      var client_state = {}
       try {
         auth = authedClient()
       } catch(e){}
@@ -65,12 +66,18 @@ module.exports = function container (get, set, clear) {
         }
       })
       websocket_client[product_id].on('error', (err) => {
+        client_state.errored = true
         console.error('websocket error: ', err, 'restarting websocket connection')
+        websocket_client[product_id].disconnect()
         websocket_client[product_id] = undefined
         websocket_cache[product_id] = undefined
         websocketClient(product_id)
       })
       websocket_client[product_id].on('close', () => {
+        if(client_state.errored){
+          client_state.errored = false
+          return
+        }
         console.error('websocket connection to '+product_id+' closed, attempting reconnect')
         websocket_client[product_id].connect()
       })
