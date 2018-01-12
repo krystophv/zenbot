@@ -25,6 +25,11 @@ module.exports = {
         else r[k] = Math.round((Math.random() * (v.max - v.min + 1)/v.factor)*v.factor);
       } else if (v.type === 'float') {
         r[k] = (Math.random() * (v.max - v.min)) + v.min;
+      } else if (v.type === 'float0') {
+        r[k] = 0
+      	if (Math.random() >= 0.5) {
+      	  r[k] =(Math.random() * (v.max - v.min)) + v.min
+      	}
       } else if (v.type === 'makertaker') {
         r[k] = (Math.random() > 0.5) ? 'maker' : 'taker';
       } else if (v.type === 'sigmoidtanhrelu') {
@@ -77,5 +82,5 @@ module.exports = {
   competition: function(phenotypeA, phenotypeB) {
     // TODO: Refer to geneticalgorithm documentation on how to improve this with diverstiy
     return module.exports.fitness(phenotypeA) >= module.exports.fitness(phenotypeB);
-  }
+}
 };

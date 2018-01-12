@@ -314,6 +314,15 @@ crossover_vwap
     --vwap_length=<value>  Min periods for vwap to start (default: 10)
     --vwap_max=<value>  Max history for vwap. Increasing this makes it more sensitive to short-term changes (default: 8000)
 
+crossover_vwap_rolling
+  description:
+    Estimate trends by comparing a rolling "Volume Weighted Average Price" to the "Exponential Moving Average".
+  options:
+    --period=<value>  period length, same as --period_length (default: 120m)
+    --period_length=<value>  period length, same as --period (default: 120m)
+    --ema_length=<value>  Length of EMA 1 (default: 30)
+    --vwap_length=<value>  Number of periods to consider for VWAP (default: 10)
+
 dema
   description:
     Buy when (short ema > long ema) and sell when (short ema < long ema).
