@@ -3,8 +3,8 @@ var z = require('zero-fill')
 var stats = require('stats-lite')
 var n = require('numbro')
 var math = require('mathjs')
-const cluster = require('cluster');
-const numCPUs = require('os').cpus().length;
+const cluster = require('cluster')
+const numCPUs = require('os').cpus().length
 // the below line starts you at 0 threads
 global.forks = 0
 // the below line is for calculating the last mean vs the now mean.
@@ -28,28 +28,21 @@ module.exports = function container (get, set, clear) {
       this.option('learns', "Number of times to 'learn' the neural network with past data", Number, 2)
     },
     calculate: function (s) {
-      calculated = null
     },
     onPeriod: function (s, cb) {
-      get('lib.ema')(s, 'neural', s.options.neural)
-        if (s.neural === undefined) {
-          // Create the net the first time it is needed and NOT on every run
-          s.neural = {
-            net : new convnetjs.Net(),
-            layer_defs : [
-              {type:'input', out_sx:1, out_sy:1, out_depth:s.options.depth},
-              {type:'fc', num_neurons:s.options.neurons_1, activation:s.options.activation_1_type},
-              {type:'regression', num_neurons:1}
-            ],
-            neuralDepth: s.options.depth
+      if (s.neural === undefined) {
+        // Create the net the first time it is needed and NOT on every run
+        s.neural = {
+          net : new convnetjs.Net(),
+          layer_defs : [
+            {type:'input', out_sx:1, out_sy:1, out_depth:s.options.depth},
+            {type:'fc', num_neurons: s.options.neurons_1, activation: s.options.activation_1_type},
+            {type:'regression', num_neurons:1}
+          ],
+          neuralDepth: s.options.depth
         }
-          s.neural.net.makeLayers(s.neural.layer_defs);
-          s.neural.trainer = new convnetjs.SGDTrainer(s.neural.net, {learning_rate:0.01, momentum:s.options.momentum, batch_size:1, l2_decay:s.options.decay});
-        }
-      if (cluster.isMaster) {
-        get('lib.ema')(s, 'neural', s.options.neural)
-        if (global.forks < s.options.threads) { cluster.fork(); global.forks++; }
-        cluster.on('exit', (code) => { process.exit(code); });
+        s.neural.net.makeLayers(s.neural.layer_defs)
+        s.neural.trainer = new convnetjs.SGDTrainer(s.neural.net, {learning_rate:0.02, momentum:s.options.momentum, batch_size:1, l2_decay:s.options.decay})
       }
       if (cluster.isWorker) {
         get('lib.ema')(s, 'neural', s.options.neural)
@@ -85,26 +78,25 @@ module.exports = function container (get, set, clear) {
           s.meanp = math.mean(s.prediction, oldmean)
           oldmean = s.prediction
         }
-        // NORMAL onPeriod STUFF here
-        global.meanp = s.meanp
-        global.mean = s.mean
-        //something strange is going on here
-        global.sig0 = global.meanp < global.mean
-        if (
-           global.sig0 === false
-           )
-           {
-            s.signal = 'sell'
-           }
-        else if
-           (
-           global.sig0 === true
-           )
-           {
-           s.signal = 'buy'
-           }
+        var item = tlp.reverse()
+        var next = new convnetjs.Vol(item)
+        var predicted_value = s.neural.net.forward(next)
+        s.prediction = predicted_value.w[0]
+        s.mean = math.mean(s.lookback[0].close, s.lookback[1].close, s.lookback[2].close)
+        s.meanp = math.mean(s.prediction, oldmean)
+        //oldmean = s.prediction
+        oldmean = s.mean
+      }
+      // NORMAL onPeriod STUFF here
+      global.meanp = s.meanp
+      global.mean = s.mean
+      //something strange is going on here
+      if (global.meanp < global.mean) {
+        s.signal = 'sell'
+      } else {
+        s.signal = 'buy'
+      }
       cb()
-     }
     },
     onReport: function (s) {
       cols = []

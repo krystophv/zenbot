@@ -58,6 +58,7 @@
     "minimist": "^1.2.0",
     "moment": "^2.18.1",
     "mongodb": "^2.2.31",
+    "neataptic": "^1.4.7",
     "node-prowl": "^0.1.7",
     "node-sass": "^4.7.2",
     "node-telegram-bot-api": "^0.29.0",
