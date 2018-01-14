@@ -8,11 +8,9 @@ module.exports = function container (get, set, clear) {
     name: 'timeseries_analysis',
     description: 'Calculate a trendline and trade when trend is positive vs negative.',
     getOptions: function () {
-      this.option('period', 'period length, same as --periodLength', String, '1s')
-      this.option('periodLength', 'period length, same as --period', String, '1s')
-      this.option('min_periods', 'Basically avgpoints + a BUNCH of more preroll periods for anything less than 5s period', Number, 100)
-      this.option('max_sell_loss_pct', 'Max Sell loss Pct', Number, 0)
-      this.option('markup_pct', 'Default Strategy Markup - Hard In The Paint Mode', Number, 0.01)
+      this.option('period', 'period length, same as --periodLength', String, '1m')
+      this.option('period_length', 'period length, same as --period', String, '1m')
+      this.option('min_periods', 'Minimum number of periods to use for calculation', Number, 100)
       this.option('num_predictions', 'Number of periods to predict from regression', Number, 10)
       this.option('lookback_mean', 'Number of periods back to include in average for comparison to prediction', Number, 10)
       this.option('smoothing', 'Number of periods to use to smooth data for regression', Number, 3)
@@ -45,6 +43,9 @@ module.exports = function container (get, set, clear) {
         const mean_predict = math.mean(predictions)
         const mean_previous = math.mean(last_entries)
 
+        s.mean_predict = mean_predict
+        s.mean_previous = mean_previous
+
         if(mean_predict > mean_previous){
           s.signal = 'buy'
         } else {
@@ -56,9 +57,9 @@ module.exports = function container (get, set, clear) {
     onReport: function (s) {
       var cols = []
       cols.push('  ')
-      cols.push(z(8, n(s.stats).format('0.00000'), ' ')[s.stats > 1 ? 'green' : 'red'])
+      cols.push(z(8, n(s.mean_predict).format('0.00000'), ' ')[s.mean_predict > s.mean_previous ? 'green' : 'red'])
       cols.push('  ')
-      cols.push(z(8, n(s.stats2).format('0.00000'), ' ')[s.stats2 > 1 ? 'green' : 'red'])
+      cols.push(z(8, n(s.mean_previous).format('0.00000'), ' ')[s.mean_predict > s.mean_previous ? 'green' : 'red'])
       cols.push('  ')
       return cols
     },
