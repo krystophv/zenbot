@@ -11,6 +11,7 @@ module.exports = function container (get, set, clear) {
       this.option('period_length', 'period length, same as --period', String, '120m')
       this.option('ema_length', 'Number of periods for the EMA', Number, 30 ) //green
       this.option('vwap_length', 'Number of periods for the VWAP', Number, 10 ) //gold
+      this.option('let_stop_exit', 'Truthy/Falsy to let other stops handle exits', Boolean, true)
     },
     
     calculate: function (s) {
@@ -28,13 +29,19 @@ module.exports = function container (get, set, clear) {
               s.acted_on_trend = false
             }
             s.trend = 'up'
-            s.signal = !s.acted_on_trend ? 'buy' : null
-          } else{
-            if (s.trend !== 'down') {
-              s.acted_on_trend = false
+            if(s.options.let_stop_exit){
+              s.signal = 'buy'
+            } else {
+              s.signal = !s.acted_on_trend ? 'buy' : null
             }
-            s.trend = 'down'
-            s.signal = !s.acted_on_trend ? 'sell' : null
+          } else {
+            if(!s.options.let_stop_exit){
+              if (s.trend !== 'down') {
+                s.acted_on_trend = false
+              }
+              s.trend = 'down'
+              s.signal = !s.acted_on_trend ? 'sell' : null
+            }
           } 
         }
       } 
