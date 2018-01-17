@@ -24,7 +24,7 @@ module.exports = function container (get, set, clear) {
         get('lib.ema')(s, 'ema', s.options.ema_length) //green
         
         if(s.period.vwap && s.period.ema){
-          if(s.period.vwap > s.period.ema) {
+          if(s.period.vwap > s.period.ema && s.period.close > s.period.ema) {
             if (s.trend !== 'up') {
               s.acted_on_trend = false
             }
@@ -54,7 +54,7 @@ module.exports = function container (get, set, clear) {
         vwapgold = s.period.vwap
       
       if (vwapgold && emagreen) {   
-        var color = vwapgold > emagreen ? 'red' : 'green'
+        var color = vwapgold > emagreen && s.period.close > emagreen ? 'green' : 'red'
           
         cols.push(z(6, n(vwapgold).format('0.00000'), '')['yellow'] + ' ')
         cols.push(z(6, n(emagreen).format('0.00000'), '')[color] + ' ')
