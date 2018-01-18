@@ -159,10 +159,6 @@ c.balance_snapshot_period = '15m'
 c.avg_slippage_pct = 0.045
 // time to leave an order open, default to 1 day (this feature is not supported on all exchanges, currently: GDAX)
 c.cancel_after = 'day'
-// bollinger period size
-c.bollinger_size = 20
-// bollinger times of standard deviation between the upper band and the moving averages
-c.bollinger_time = 2
 
 // Notifiers:
 c.notifiers = {}
@@ -241,4 +237,5 @@ c.output  = {}
 // REST API
 c.output.api = {}
 c.output.api.on = true
+c.output.api.ip = '0.0.0.0' // IPv4 or IPv6 address to listen on, uses all available interfaces if omitted
 c.output.api.port = 0 // 0 = random port

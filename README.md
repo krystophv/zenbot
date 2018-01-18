@@ -3,7 +3,7 @@
 > “To follow the path, look to the master, follow the master, walk with the master, see through the master, become the master.”
 > – Zen Proverb
 
-# Zenbot [![Build/Test Status](https://travis-ci.org/DeviaVir/zenbot.svg?branch=master)](https://travis-ci.org/DeviaVir/zenbot)
+# Zenbot [![Build/Test Status](https://travis-ci.org/DeviaVir/zenbot.svg?branch=master)](https://travis-ci.org/DeviaVir/zenbot) [![Greenkeeper badge](https://badges.greenkeeper.io/DeviaVir/zenbot.svg)](https://greenkeeper.io/)
 
 ## Current Status
 
@@ -86,7 +86,9 @@ npm link
 ```
 
 ### Ubuntu 16.04 Step-By-Step
-https://youtu.be/BEhU55W9pBI
+[Video](https://youtu.be/BEhU55W9pBI)
+[Blog Post](https://jaynagpaul.com/algorithmic-crypto-trading?utm_source=zenbot)
+
 ```
 sudo apt-get update
 sudo apt-get upgrade -y
