@@ -17,9 +17,13 @@ module.exports = function container (get, set, clear) {
       this.option('down_trend_threshold', 'threshold to trigger a sold signal', Number, 0)
       this.option('overbought_rsi_periods', 'number of periods for overbought RSI', Number, 25)
       this.option('overbought_rsi', 'sold when RSI exceeds this value', Number, 70)
+      this.option('let_stop_exit', 'Truthy/Falsy to let other stops handle exits', Boolean, true)
     },
 
     calculate: function (s) {
+    },
+
+    onPeriod: function (s, cb) {
       if (s.options.overbought_rsi) {
         // sync RSI display with overbought RSI periods
         s.options.rsi_periods = s.options.overbought_rsi_periods
@@ -40,9 +44,6 @@ module.exports = function container (get, set, clear) {
           s.period.macd_histogram = s.period.macd - s.period.signal
         }
       }
-    },
-
-    onPeriod: function (s, cb) {
       if (!s.in_preroll && typeof s.period.overbought_rsi === 'number') {
         if (s.overbought) {
           s.overbought = false
@@ -54,11 +55,14 @@ module.exports = function container (get, set, clear) {
 
       if (typeof s.period.macd_histogram === 'number' && typeof s.lookback[0].macd_histogram === 'number') {
         if ((s.period.macd_histogram - s.options.up_trend_threshold) > 0 && (s.lookback[0].macd_histogram - s.options.up_trend_threshold) <= 0) {
-          s.signal = 'buy';
-        } else if ((s.period.macd_histogram + s.options.down_trend_threshold) < 0 && (s.lookback[0].macd_histogram + s.options.down_trend_threshold) >= 0) {
-          s.signal = 'sell';
+          s.signal = 'buy'
+        } else if (!s.options.let_stop_exit && 
+          (s.period.macd_histogram + s.options.down_trend_threshold) < 0 && 
+          (s.lookback[0].macd_histogram + s.options.down_trend_threshold) >= 0) {
+          s.signal = 'sell'
         } else {
-          s.signal = null;  // hold
+          if(!s.options.let_stop_exit)
+            s.signal = null  // hold
         }
       }
       cb()
