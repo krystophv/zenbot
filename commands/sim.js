@@ -40,6 +40,7 @@ module.exports = function container (get, set, clear) {
       .option('--enable_stats', 'enable printing order stats')
       .option('--verbose', 'print status lines on every period')
       .action(function (selector, cmd) {
+        console.time('sim')
         var s = {options: minimist(process.argv)}
         var so = s.options
         delete so._
@@ -66,7 +67,7 @@ module.exports = function container (get, set, clear) {
           so.start = d.subtract(so.days).toMilliseconds()
         }
         so.days = moment(so.end).diff(moment(so.start), 'days')
-
+        
         so.stats = !!cmd.enable_stats
         so.show_options = !cmd.disable_options
         so.verbose = !!cmd.verbose
@@ -142,6 +143,7 @@ module.exports = function container (get, set, clear) {
             output_lines.push('win/loss: ' + (sells - losses) + '/' + losses)
             output_lines.push('error rate: ' + (sells ? n(losses).divide(sells).format('0.00%') : '0.00%').yellow)
           }
+          console.timeEnd('sim')
           output_lines.forEach(function (line) {
             console.log(line)
           })
@@ -178,7 +180,7 @@ module.exports = function container (get, set, clear) {
               selector: so.selector.normalized
             },
             sort: {time: 1},
-            limit: 1000
+            limit: 10000
           }
           if (so.end) {
             opts.query.time = {$lte: so.end}
@@ -219,13 +221,13 @@ module.exports = function container (get, set, clear) {
             }
             engine.update(trades, function (err) {
               if (err) throw err
-              if (reversing) {
+              if (reversing) { 
                 cursor = trades[trades.length - 1].orig_time
               }
               else {
                 cursor = trades[trades.length - 1].time
               }
-              setImmediate(getNext)
+              process.nextTick(getNext)
             })
           })
         }
