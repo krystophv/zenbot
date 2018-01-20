@@ -355,15 +355,15 @@ let strategies = {
   },
   macd: {
     // -- common
-    period_length: RangePeriod(1, 120, 'm'),
-    min_periods: Range(1, 200),
-    markdown_buy_pct: RangeFloat(-1, 5),
-    markup_sell_pct: RangeFloat(-1, 5),
+    period_length: RangePeriod(1, 5, 'm'),
+    min_periods: Range(100, 100),
+    markdown_buy_pct: RangeFloat0(0, 0),
+    markup_sell_pct: RangeFloat0(0, 0),
     order_type: RangeMakerTaker(),
-    sell_stop_pct: Range0(1, 50),
-    buy_stop_pct: Range0(1, 50),
-    profit_stop_enable_pct: Range0(1, 20),
-    profit_stop_pct: Range(1,20),
+    sell_stop_pct: RangeFloat(0.4, 1),
+    buy_stop_pct: RangeFloat0(0, 5),
+    profit_stop_enable_pct: RangeFloat(0, 1),
+    profit_stop_pct: RangeFloat(0, 1),
 
     // -- strategy
     ema_short_period: Range(1, 20),
