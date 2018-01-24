@@ -51,7 +51,11 @@ let runCommand = (taskStrategyName, phenotype, cb) => {
   let command = `${zenbot_cmd} sim ${selector}`
 
   for (const [ key, value ] of Object.entries(cmdArgs)) {
-    command += ` --${key}=${value}`
+    if(typeof value === 'boolean'){
+      command += ` --${key}`
+    } else {
+      command += ` --${key}=${value}`
+    }
   }
 
   console.log(`[ ${iterationCount++}/${populationSize * selectedStrategies.length} ] ${command}`)
@@ -681,9 +685,12 @@ var generateCommandParams = input => {
       // selector should be at start before keys
       if(key == 'selector'){
         result = input[key] + result
+      } else {
+        if(typeof input[key] === 'boolean'){
+          result += ' --'+key
+        }
+        else result += ' --'+key+'='+input[key]
       }
-
-      else result += ' --'+key+'='+input[key]
     }
 
   }
