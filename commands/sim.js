@@ -36,6 +36,7 @@ module.exports = function container (get, set, clear) {
       .option('--max_slippage_pct <pct>', 'avoid selling at a slippage pct above this float', c.max_slippage_pct)
       .option('--symmetrical', 'reverse time at the end of the graph, normalizing buy/hold to 0', c.symmetrical)
       .option('--rsi_periods <periods>', 'number of periods to calculate RSI at', Number, c.rsi_periods)
+      .option('--periods_only', 'only use period data instead of full trade data')
       .option('--disable_options', 'disable printing of options')
       .option('--enable_stats', 'enable printing order stats')
       .option('--verbose', 'print status lines on every period')
@@ -61,6 +62,8 @@ module.exports = function container (get, set, clear) {
           if (so.days && !so.start) {
             so.start = tb(so.end).resize('1d').subtract(so.days).toMilliseconds()
           }
+        } else {
+          so.end = moment().valueOf()
         }
         if (!so.start && so.days) {
           var d = tb('1d')
@@ -71,6 +74,7 @@ module.exports = function container (get, set, clear) {
         so.stats = !!cmd.enable_stats
         so.show_options = !cmd.disable_options
         so.verbose = !!cmd.verbose
+        so.periods_only = !!cmd.periods_only
         so.selector = get('lib.objectify-selector')(selector || c.selector)
         so.mode = 'sim'
         if (cmd.conf) {
@@ -231,7 +235,105 @@ module.exports = function container (get, set, clear) {
             })
           })
         }
-        getNext()
+
+        var period_duration = 0
+        var hundred_periods
+
+        function getNextPeriods() {
+          var opts = {
+            match: {
+              selector: so.selector.normalized
+            },
+            sort: {time: 1}
+          }
+          if (so.end) {
+            opts.match.time = { $lte: so.end }
+          }
+          if (cursor) {
+            if (!opts.match.time) opts.match.time = {}
+            opts.match.time['$gte'] = cursor
+            if (so.end && so.end < cursor + hundred_periods){
+              opts.match.time['$lt'] = so.end
+            } else {
+              opts.match.time['$lt'] = cursor + hundred_periods
+            }
+          }
+          else if (query_start) {
+            if (!opts.match.time) opts.match.time = {}
+            opts.match.time['$gte'] = query_start
+            if (so.end && so.end < query_start + hundred_periods){
+              opts.match.time['$lt'] = so.end
+            } else {
+              opts.match.time['$lt'] = query_start + hundred_periods
+            }
+          }
+          var db = get('db.mongo')
+          var col = db.collection('trades')         
+          col.aggregate([
+            { $match: opts.match },
+            { $sort: opts.sort },
+            { $project: {
+              time: 1,
+              size: 1,
+              price: 1,
+              side: 1
+            }},
+            { $group: {
+              _id: {
+                $subtract: [
+                  '$time',
+                  { '$mod': [
+                    '$time',
+                    period_duration
+                  ]}
+                ]
+              },
+              open: { $first: '$price' },
+              close: { $last: '$price' },
+              high: { $max: '$price' },
+              low: { $min: '$price' },
+              volume: { $sum: '$size' },
+              count: { $sum: 1 }
+            }},
+            /* // could do some more math here for future data to be provided to sims like ohlc4 or close_time
+            { $project: {
+              _id: 1,
+              open: 1,
+              close: 1,
+              high: 1,
+              low: 1,
+              volume: 1,
+              ohlc4: { $divide: [
+                { $add: [ '$open', '$close', '$high', '$low']},
+                4
+              ]},
+              close_time: { $add: [
+                '$_id', period_duration - 1
+              ]}
+            }},
+            */
+            { $sort: { '_id': 1 } }
+          ]).toArray(function(err, periods) {
+            if (err) throw err
+            if(!periods.length && opts.match.time['$lt'] >= so.end){
+              engine.exit(exitSim)
+            }
+            engine.updatePeriods(periods, function(err) {
+              if (err) throw err
+              cursor = opts.match.time['$lt']
+              process.nextTick(getNextPeriods)
+            })
+          })
+        }
+
+        if(!so.periods_only){
+          getNext()  
+        } else {
+          var period_ISO = 'PT'+so.period_length.toUpperCase()
+          period_duration = moment.duration(period_ISO).asMilliseconds()
+          hundred_periods = period_duration * 100
+          getNextPeriods(period_duration)
+        }        
       })
   }
 }
