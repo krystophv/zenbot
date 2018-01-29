@@ -39,6 +39,7 @@ module.exports = function container (get, set, clear) {
       .option('--periods_only', 'only use period data instead of full trade data')
       .option('--disable_options', 'disable printing of options')
       .option('--enable_stats', 'enable printing order stats')
+      .option('--backtester_generation <generation>','creates a json file in simulations with the generation number', Number, -1)
       .option('--verbose', 'print status lines on every period')
       .action(function (selector, cmd) {
         console.time('sim')
@@ -77,6 +78,7 @@ module.exports = function container (get, set, clear) {
         so.periods_only = !!cmd.periods_only
         so.selector = get('lib.objectify-selector')(selector || c.selector)
         so.mode = 'sim'
+
         if (cmd.conf) {
           var overrides = require(path.resolve(process.cwd(), cmd.conf))
           Object.keys(overrides).forEach(function (k) {
@@ -87,7 +89,7 @@ module.exports = function container (get, set, clear) {
         if (!so.min_periods) so.min_periods = 1
         var cursor, reversing, reverse_point
         var query_start = so.start ? tb(so.start).resize(so.period_length).subtract(so.min_periods + 2).toMilliseconds() : null
-
+        
         function exitSim () {
           console.log()
           if (!s.period) {
@@ -104,10 +106,10 @@ module.exports = function container (get, set, clear) {
           option_keys.forEach(function (k) {
             options[k] = so[k]
           })
-          if (so.show_options) {
-            var options_json = JSON.stringify(options, null, 2)
-            output_lines.push(options_json)
-          }
+          
+          let options_output = options
+          options_output.simresults = {}
+         
           if (s.my_trades.length) {
             s.my_trades.push({
               price: s.period.close,
@@ -117,6 +119,7 @@ module.exports = function container (get, set, clear) {
             })
           }
           s.balance.currency = n(s.balance.currency).add(n(s.period.close).multiply(s.balance.asset)).format('0.00000000')
+
           s.balance.asset = 0
           s.lookback.unshift(s.period)
           var profit = s.start_capital ? n(s.balance.currency).subtract(s.start_capital).divide(s.start_capital) : n(0)
@@ -147,10 +150,33 @@ module.exports = function container (get, set, clear) {
             output_lines.push('win/loss: ' + (sells - losses) + '/' + losses)
             output_lines.push('error rate: ' + (sells ? n(losses).divide(sells).format('0.00%') : '0.00%').yellow)
           }
+          options_output.simresults.start_capital = s.start_capital
+          options_output.simresults.currency = n(s.balance.currency).value()
+          options_output.simresults.profit = profit.value()
+          options_output.simresults.buy_hold = buy_hold.value()
+          options_output.simresults.buy_hold_profit = buy_hold_profit.value()
+          options_output.simresults.total_trades = s.my_trades.length
+          options_output.simresults.length_days = s.day_count
+          options_output.simresults.total_sells = sells
+          options_output.simresults.total_losses = losses
+          options_output.simresults.vs_buy_hold = n(s.balance.currency).subtract(buy_hold).divide(buy_hold).value() * 100.00
+          
+          let options_json = JSON.stringify(options_output, null, 2)
+          if (so.show_options) {       
+            output_lines.push(options_json)
+          }
+          
           console.timeEnd('sim')
           output_lines.forEach(function (line) {
             console.log(line)
           })
+
+          if (so.backtester_generation >= 0)
+          {
+            fs.writeFileSync(path.resolve(__dirname, '..', 'simulations','sim_'+so.strategy.replace('_','')+'_'+ so.selector.normalized.replace('_','').toLowerCase()+'_'+so.backtester_generation+'.json'),options_json, {encoding: 'utf8'})
+          }
+
+
           if (so.filename !== 'none') {
             var html_output = output_lines.map(function (line) {
               return colors.stripColors(line)
@@ -175,6 +201,7 @@ module.exports = function container (get, set, clear) {
             fs.writeFileSync(out_target, out)
             console.log('wrote', out_target)
           }
+
           process.exit(0)
         }
 
