@@ -79,8 +79,8 @@ module.exports = function container (get, set, clear) {
         client_state.errored = true
         if(so.debug) console.error('websocket error: ', err, 'restarting websocket connection')
         websocket_client[product_id].disconnect()
-        websocket_client[product_id] = undefined
-        websocket_cache[product_id] = undefined
+        websocket_client[product_id] = null
+        websocket_cache[product_id] = null
         websocketClient(product_id)
       })
       
@@ -182,7 +182,7 @@ module.exports = function container (get, set, clear) {
     historyScan: 'backward',
     makerFee: 0,
     takerFee: 0.3,
-    backfillRateLimit: 340,
+    backfillRateLimit: 335,
 
     getProducts: function () {
       return require('./products.json')
@@ -245,7 +245,7 @@ module.exports = function container (get, set, clear) {
     getBalance: function (opts, cb) {
       var func_args = [].slice.call(arguments)
       var client = authedClient()
-      //console.log('getaccounts call')
+      if(so.debug) console.log('getaccounts call')
       client.getAccounts(function (err, resp, body) {
         if (!err) err = statusErr(resp, body)
         if (err) return retry('getBalance', func_args, err)
