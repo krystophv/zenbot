@@ -8,7 +8,6 @@ var tb = require('timebucket')
   , objectifySelector = require('../lib/objectify-selector')
   , engineFactory = require('../lib/engine')
   , tradesCollection = require('../db/trades')
-  , _ = require('lodash')
 
 module.exports = function (program, conf) {
   program
@@ -255,7 +254,7 @@ module.exports = function (program, conf) {
           }            
           engine.update(trades, function (err) {
             if (err) throw err
-            if (reversing) { 
+            if (reversing) {
               cursor = trades[trades.length - 1].orig_time
             }
             else {
