@@ -21,7 +21,7 @@ module.exports = {
     this.option('let_stop_exit', 'Truthy/Falsy to let other stops handle exits', Boolean, true)
   },
 
-  calculate: function (s) {
+  calculate: function () {
   },
 
   onPeriod: function (s, cb) {
@@ -45,27 +45,28 @@ module.exports = {
         s.period.macd_histogram = s.period.macd - s.period.signal
       }
 
-    if (!s.in_preroll && typeof s.period.overbought_rsi === 'number') {
-      if (s.overbought) {
-        s.overbought = false
-        s.trend = 'overbought'
-        s.signal = 'sell'
-        return cb()
-      }
+      if (!s.in_preroll && typeof s.period.overbought_rsi === 'number') {
+        if (s.overbought) {
+          s.overbought = false
+          s.trend = 'overbought'
+          s.signal = 'sell'
+          return cb()
+        }
   
-    }
-
-    if (typeof s.period.macd_histogram === 'number' && typeof s.lookback[0].macd_histogram === 'number') {
-      if ((s.period.macd_histogram - s.options.up_trend_threshold) > 0 && (s.lookback[0].macd_histogram - s.options.up_trend_threshold) <= 0) {
-        s.signal = 'buy'
-      } else if (!s.options.let_stop_exit && (s.period.macd_histogram + s.options.down_trend_threshold) < 0 && (s.lookback[0].macd_histogram + s.options.down_trend_threshold) >= 0) {
-        s.signal = 'sell'
-      } else {
-        if(!s.options.let_stop_exit)
-          s.signal = null  // hold
       }
+
+      if (typeof s.period.macd_histogram === 'number' && typeof s.lookback[0].macd_histogram === 'number') {
+        if ((s.period.macd_histogram - s.options.up_trend_threshold) > 0 && (s.lookback[0].macd_histogram - s.options.up_trend_threshold) <= 0) {
+          s.signal = 'buy'
+        } else if (!s.options.let_stop_exit && (s.period.macd_histogram + s.options.down_trend_threshold) < 0 && (s.lookback[0].macd_histogram + s.options.down_trend_threshold) >= 0) {
+          s.signal = 'sell'
+        } else {
+          if(!s.options.let_stop_exit)
+            s.signal = null  // hold
+        }
+      }
+      cb()
     }
-    cb()
   },
 
   onReport: function (s) {
