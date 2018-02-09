@@ -23,6 +23,7 @@ paper_result*
 backtesting_*
 summary_*
 generation_data_*
+simulations/*
 models/**/*.json
 models/**/*.html
 *.pyc
