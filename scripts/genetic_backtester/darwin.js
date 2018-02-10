@@ -17,7 +17,7 @@ let StripAnsi = require('strip-ansi')
 let moment = require('moment')
 let tb = require('timebucket')
 let path = require('path')
-//eslint-disable-next-line
+// eslint-disable-next-line no-unused-vars
 let colors = require('colors')
 let readline = require('readline')
 const spawn = require('child_process').spawn
@@ -77,7 +77,7 @@ let darwinMonitor = {
     if (so.start && so.end) {
       var actualStart = moment( tb(so.start.valueOf()).resize(so.period_length).subtract(so.min_periods + 2).toMilliseconds() )
       return {
-        start: actualStart,
+        start: actualStart, 
         end: so.end
       }
     }
@@ -290,7 +290,8 @@ let buildCommand = (taskStrategyName, phenotype) => {
   delete cmdArgs.sim
   delete cmdArgs.command
 
-  cmdArgs.filename = `simulations/${population_data}/gen_${generationCount}/sim_${iteration}_result.html`
+  if (argv.include_html)
+    cmdArgs.filename = `simulations/${population_data}/gen_${generationCount}/sim_${iteration}_result.html`
 
   let zenbot_cmd = process.platform === 'win32' ? 'zenbot.bat' : './zenbot.sh'
   let command = `${zenbot_cmd} sim ${selector}`
@@ -1055,7 +1056,61 @@ while (fs.existsSync(`simulations/${population_data}/gen_${generationCount}`)) {
 generationCount--
 if (generationCount > 0 && !fs.existsSync(`simulations/${population_data}/gen_${generationCount}/results.csv`)) { generationCount-- }
 
-function simulateGeneration  () {
+function saveLaunchFiles(saveLauchFile, configuration ){
+  if (!saveLauchFile) return
+  //let lConfiguration = configuration.replace(' sim ', ' trade ')
+  let lFilenameNix = new String().concat('./gen.',configuration.selector.toLowerCase(),'.sh')
+  let lFinenamewin32 = new String().concat('./gen.',configuration.selector.toLowerCase(),'.bat')
+  delete configuration.generateLaunch
+  delete configuration.backtester_generation
+
+  let bestOverallCommand = generateCommandParams(configuration)
+  let lastFitnessLevel = -9999.0
+  // get prior fitness level nix
+  if (fs.existsSync(lFilenameNix) )
+  {
+    let lFileCont = fs.readFileSync(lFilenameNix,{encoding:'utf8',flag:'r'})
+    let lines = lFileCont.split('\n')
+    if (lines.length > 2) 
+      if (lines[1].includes('fitness='))
+      {
+        let th = lines[1].split('=')
+        lastFitnessLevel = th[1]
+      }
+  }
+  // get prior firness level win32
+  if (fs.existsSync(lFinenamewin32) )
+  {
+    let lFileCont = fs.readFileSync(lFinenamewin32,{encoding:'utf8',flag:'r'})
+    let lines = lFileCont.split('\n')
+    if (lines.length > 1) 
+      if (lines[1].includes('fitness='))
+      {
+        let th = lines[1].split('=')
+        lastFitnessLevel = th[1]
+      }
+  }
+  
+  //write Nix Version
+  let lNixContents = '#!/bin/bash\n'.concat('#fitness=',configuration.fitness,'\n','./zenbot.sh trade ', bestOverallCommand,'\n')
+  let lWin32Contents = '@echo off\n'.concat('rem fitness=',configuration.fitness,'\n','./zenbot.bat trade ', bestOverallCommand,'\n')
+  
+  if (Number(configuration.fitness) > Number(lastFitnessLevel))
+  {
+    fs.writeFileSync(lFilenameNix, lNixContents)
+    fs.writeFileSync(lFinenamewin32, lWin32Contents)
+    fs.chmodSync(lFilenameNix,777)
+    fs.chmodSync(lFinenamewin32,777)
+  }
+}
+
+function simulateGeneration  (generateLaunchFile) {
+
+// Find the first incomplete generation of this session, where incomplete means no "results" files
+  while (fs.existsSync(`simulations/${population_data}/gen_${generationCount}`)) { generationCount++ }
+  generationCount--
+  if (generationCount > 0 && !fs.existsSync(`simulations/${population_data}/gen_${generationCount}/results.csv`)) { generationCount-- }
+
   generationProcessing = true
   console.log(`\n\n=== Simulating generation ${++generationCount} ===\n`)
   darwinMonitor.reset()
@@ -1122,7 +1177,7 @@ function simulateGeneration  () {
       return !!r
     })
 
-    results.sort((a, b) => (a.fitness < b.fitness) ? 1 : ((b.fitness < a.fitness) ? -1 : 0))
+    results.sort((a, b) => (Number(a.fitness) < Number(b.fitness)) ? 1 : ((Number(b.fitness) < Number(a.fitness)) ? -1 : 0))
 
     let fieldsGeneral = ['selector.normalized', 'fitness', 'vsBuyHold', 'wlRatio', 'frequency', 'strategy', 'order_type', 'endBalance', 'buyHold', 'wins', 'losses', 'period_length', 'min_periods', 'days', 'params']
     let fieldNamesGeneral = ['Selector', 'Fitness', 'VS Buy Hold (%)', 'Win/Loss Ratio', '# Trades/Day', 'Strategy', 'Order Type', 'Ending Balance ($)', 'Buy Hold ($)', '# Wins', '# Losses', 'Period', 'Min Periods', '# Days', 'Full Parameters']
@@ -1152,11 +1207,11 @@ function simulateGeneration  () {
       let best = pools[v]['pool'].best()
       let bestCommand
       if(best.sim){
-        console.log(`\t(${best.sim.strategy}) Sim Fitness ${best.sim.fitness}, VS Buy and Hold: ${best.sim.vsBuyHold} End Balance: ${best.sim.endBalance}, Wins/Losses ${best.sim.wins}/${best.sim.losses}, ROI ${best.sim.roi}.`)
+        console.log(`(${best.sim.strategy}) Sim Fitness ${best.sim.fitness}, VS Buy and Hold: ${z(5, (n(best.sim.vsBuyHold).format('0.0') + '%'), ' ').yellow} BuyAndHold Balance: ${z(5, (n(best.sim.buyHold).format('0.000000')), ' ').yellow}  End Balance: ${z(5, (n(best.sim.endBalance).format('0.000000')), ' ').yellow}, Wins/Losses ${best.sim.wins}/${best.sim.losses}, ROI ${z(5, (n(best.sim.roi).format('0.000000')), ' ').yellow}.`)
         bestCommand = generateCommandParams(best.sim)
         bestOverallResult.push(best.sim)
       } else {
-        console.log(`\t(${results[0].strategy}) Result Fitness ${results[0].fitness}, VS Buy and Hold: ${results[0].vsBuyHold}, End Balance: ${results[0].endBalance}, Wins/Losses ${results[0].wins}/${results[0].losses}.`)
+        console.log(`(${results[0].strategy}) Result Fitness ${results[0].fitness}, VS Buy and Hold: ${z(5, (n(results[0].vsBuyHold).format('0.0') + '%'), ' ').yellow} BuyAndHold Balance: ${z(5, (n(results[0].buyHold).format('0.000000')), ' ').yellow}  End Balance: ${z(5, (n(results[0].endBalance).format('0.000000')), ' ').yellow}, Wins/Losses ${results[0].wins}/${results[0].losses}, ROI ${z(5, (n(results.roi).format('0.000000') ), ' ').yellow}.`)
         bestCommand = generateCommandParams(results[0])
         bestOverallResult.push(results[0])
       }
@@ -1169,13 +1224,22 @@ function simulateGeneration  () {
     })
 
     bestOverallResult.sort((a, b) => (a.fitness < b.fitness) ? 1 : ((b.fitness < a.fitness) ? -1 : 0))
-    if (selectedStrategies.length > 1){
-      console.log(`\t(${bestOverallResult[0].strategy}) Best Overall Fitness ${bestOverallResult[0].fitness}, VS Buy and Hold: ${bestOverallResult[0].vsBuyHold} End Balance: ${bestOverallResult[0].endBalance}, Wins/Losses ${bestOverallResult[0].wins}/${bestOverallResult[0].losses}, ROI ${bestOverallResult[0].roi}.`)
-    }
+    // if (selectedStrategies.length > 1){
+    //     }
+
+    
     let bestOverallCommand = generateCommandParams(bestOverallResult[0])
     bestOverallCommand = prefix + bestOverallCommand
     bestOverallCommand = bestOverallCommand + ' --asset_capital=' + argv.asset_capital + ' --currency_capital=' + argv.currency_capital
+    
+
+    saveLaunchFiles(generateLaunchFile, bestOverallResult[0])
+
+
+
     if (selectedStrategies.length > 1) {
+      console.log(`(${bestOverallResult[0].strategy}) Best Overall Fitness ${bestOverallResult[0].fitness}, VS Buy and Hold: ${z(5, (n(bestOverallResult[0].vsBuyHold).format('0.00') + '%'), ' ').yellow} BuyAndHold Balance: ${z(5, (n(bestOverallResult[0].buyHold).format('0.000000')), ' ').yellow}  End Balance: ${z(5, (n(bestOverallResult[0].endBalance).format('0.000000')), ' ').yellow}, Wins/Losses ${bestOverallResult[0].wins}/${bestOverallResult[0].losses}, ROI ${z(5, (n(bestOverallResult[0].roi).format('0.000000')), ' ').yellow}.`)
+
       console.log(bestOverallCommand + '\n')
     }
 
@@ -1188,6 +1252,7 @@ function simulateGeneration  () {
 
   })
 }
+
 
 
 console.log(`\n--==${VERSION}==--`)
@@ -1205,11 +1270,12 @@ delete simArgs.population
 delete simArgs['$0'] // This comes in to argv all by itself
 delete simArgs['_']  // This comes in to argv all by itself
 
+let generateLaunchFile = (simArgs.generateLaunch) ? true : false
 let strategyName = (argv.use_strategies) ? argv.use_strategies : 'all'
 //let populationFileName = (argv.population_data) ? argv.population_data : null
 populationSize = (argv.population) ? argv.population : 100
 
-console.log(`Backtesting strategy ${strategyName} ...`)
+console.log(`Backtesting strategy ${strategyName} ...\n`)
 console.log(`Creating population of ${populationSize} ...\n`)
 
 
@@ -1311,5 +1377,5 @@ process.on('uncaughtException', exitHandler.bind(null, {exit:true}))
 
 
 setInterval( ()=>{
-  if (generationProcessing == false)  simulateGeneration()
+  if (generationProcessing == false)  simulateGeneration(generateLaunchFile)
 },1000)
