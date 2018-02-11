@@ -18,7 +18,7 @@ module.exports = {
     this.option('down_trend_threshold', 'threshold to trigger a sold signal', Number, 0)
     this.option('overbought_rsi_periods', 'number of periods for overbought RSI', Number, 25)
     this.option('overbought_rsi', 'sold when RSI exceeds this value', Number, 70)
-    this.option('let_stop_exit', 'Truthy/Falsy to let other stops handle exits', Boolean, true)
+    this.option('let_stop_exit', 'Truthy/Falsy to let other stops handle exits', Boolean, false)
   },
 
   calculate: function () {
@@ -65,8 +65,8 @@ module.exports = {
             s.signal = null  // hold
         }
       }
-      cb()
     }
+    cb()
   },
 
   onReport: function (s) {
