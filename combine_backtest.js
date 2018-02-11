@@ -1,6 +1,7 @@
 const fs = require('fs')
 const _ = require('lodash')
 const json2csv = require('./scripts/genetic_backtester/node_modules/json2csv')
+const glob = require('glob')
 
 function customizer(objValue, srcValue) {
   if (_.isArray(objValue)) {
@@ -8,14 +9,15 @@ function customizer(objValue, srcValue) {
   }
 }
 
-const files = fs.readdirSync('simulations')
 const collector = {}
 
-_.forEach(files, file => {
-  if (_.startsWith(file, 'generation_data')) {
-    data = require(`./simulations/${file}`)
-    //console.log(data);
+glob(__dirname + '/simulations/**/results.json', (err, matches)=>{
+  _.forEach(matches, file => {
+    var data = require(file)
     _.forEach(data, (strat_array, strategy) => {
+      _.remove(strat_array, function(run){
+        return !run.sim.fitness
+      })
       console.log(strategy, strat_array.length)
       _.forEach(strat_array, run => {
         _.merge(run, run.sim)
@@ -24,23 +26,21 @@ _.forEach(files, file => {
           _.merge(run, JSON.parse(run.params.slice(17)))
         }
         delete run.params
-        run.period = parseInt(run.period)
+        delete run.command
+        run.period = parseInt(run.period_length)
       })
     })
     _.mergeWith(collector, data, customizer)
-  }
-})
-
-_.forEach(collector, (runs, strategy) => {
-  const fileName = `./simulations/summary_${strategy}.csv`
-  const csv = json2csv({
-    data: _.sortBy(runs, 'vsBuyHold')
   })
-
-  fs.writeFile(fileName, csv, err => {
-    if (err) throw err
-    console.log(`\nResults successfully saved to ${fileName}!\n`)
+  _.forEach(collector, (runs, strategy) => {
+    const fileName = `./simulations/summary_${strategy}.csv`
+    const csv = json2csv({
+      data: (_.sortBy(runs, 'fitness')).reverse()
+    })
+  
+    fs.writeFile(fileName, csv, err => {
+      if (err) throw err
+      console.log(`\nResults successfully saved to ${fileName}!\n`)
+    })
   })
 })
-
-//console.log(collector.trend_ema.length)
