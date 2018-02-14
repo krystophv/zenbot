@@ -8,6 +8,7 @@ var tb = require('timebucket')
   , objectifySelector = require('../lib/objectify-selector')
   , engineFactory = require('../lib/engine')
   , collectionService = require('../lib/services/collection-service')
+  , _ = require('lodash')
 
 module.exports = function (program, conf) {
   program
@@ -42,17 +43,25 @@ module.exports = function (program, conf) {
     .option('--enable_stats', 'enable printing order stats')
     .option('--backtester_generation <generation>','creates a json file in simulations with the generation number', Number, -1)
     .option('--verbose', 'print status lines on every period')
+    .option('--silent', 'only output on completion (can speed up sim)')
     .action(function (selector, cmd) {
       console.time('sim')
       var s = {options: minimist(process.argv)}
       var so = s.options
       delete so._
+      if (cmd.conf) { 
+        var overrides = require(path.resolve(process.cwd(), cmd.conf)) 
+        Object.keys(overrides).forEach(function (k) { 
+          so[k] = overrides[k] 
+        }) 
+      }
       Object.keys(conf).forEach(function (k) {
-        if (typeof cmd[k] !== 'undefined') {
+        if (!_.isUndefined(cmd[k])) {
           so[k] = cmd[k]
         }
       })
       var tradesCollection = collectionService(conf).getTrades()
+      var eventBus = conf.eventBus
 
       if (so.start) {
         so.start = moment(so.start, 'YYYYMMDDhhmm').valueOf()
@@ -82,12 +91,6 @@ module.exports = function (program, conf) {
       so.selector = objectifySelector(selector || conf.selector)
       so.mode = 'sim'
 
-      if (cmd.conf) {
-        var overrides = require(path.resolve(process.cwd(), cmd.conf))
-        Object.keys(overrides).forEach(function (k) {
-          so[k] = overrides[k]
-        })
-      }
       var engine = engineFactory(s, conf)
       if (!so.min_periods) so.min_periods = 1
       var cursor, reversing, reverse_point
@@ -203,7 +206,6 @@ module.exports = function (program, conf) {
           fs.writeFileSync(out_target, out)
           console.log('wrote', out_target)
         }
-
         process.exit(0)
       }
 
@@ -212,8 +214,7 @@ module.exports = function (program, conf) {
           query: {
             selector: so.selector.normalized
           },
-          sort: {time: 1},
-          limit: 10000
+          sort: {time: 1}
         }
         if (so.end) {
           opts.query.time = {$lte: so.end}
@@ -236,37 +237,41 @@ module.exports = function (program, conf) {
           if (!opts.query.time) opts.query.time = {}
           opts.query.time['$gte'] = query_start
         }
-        tradesCollection.find(opts.query).sort(opts.sort).limit(opts.limit).toArray(function (err, trades) {
-          if (err) throw err
-          if (!trades.length) {
+        var collectionCursor = tradesCollection.find(opts.query).sort(opts.sort).stream()
+        var numTrades = 0
+        var lastTrade
+
+        collectionCursor.on('data', function(trade){
+          lastTrade = trade
+          numTrades++
+          if (so.symmetrical && reversing) {
+            trade.orig_time = trade.time
+            trade.time = reverse_point + (reverse_point - trade.time)
+          }
+          eventBus.emit('trade', trade)
+        })
+
+        collectionCursor.on('end', function(){
+          if(numTrades === 0){
             if (so.symmetrical && !reversing) {
               reversing = true
               reverse_point = cursor
               return getNext()
             }
             engine.exit(exitSim)
-          }
-          if (so.symmetrical && reversing) {
-            trades.forEach(function (trade) {
-              trade.orig_time = trade.time
-              trade.time = reverse_point + (reverse_point - trade.time)
-            })
-          }            
-          engine.update(trades, function (err) {
-            if (err) throw err
+          } else {
             if (reversing) {
-              cursor = trades[trades.length - 1].orig_time
+              cursor = lastTrade.orig_time
             }
             else {
-              cursor = trades[trades.length - 1].time
+              cursor = lastTrade.time
             }
             process.nextTick(getNext)
-          })
+          }
         })
       }
 
       var period_duration = 0
-      var hundred_periods
 
       function getNextPeriods() {
         var opts = {
@@ -281,24 +286,14 @@ module.exports = function (program, conf) {
         if (cursor) {
           if (!opts.match.time) opts.match.time = {}
           opts.match.time['$gte'] = cursor
-          if (so.end && so.end < cursor + hundred_periods){
-            opts.match.time['$lt'] = so.end
-          } else {
-            opts.match.time['$lt'] = cursor + hundred_periods
-          }
         }
         else if (query_start) {
           if (!opts.match.time) opts.match.time = {}
           opts.match.time['$gte'] = query_start
-          if (so.end && so.end < query_start + hundred_periods){
-            opts.match.time['$lt'] = so.end
-          } else {
-            opts.match.time['$lt'] = query_start + hundred_periods
-          }
         }
         var db = conf.db.mongo
-        var col = db.collection('trades')         
-        col.aggregate([
+        var col = db.collection('trades')
+        var aggregateCursor = col.aggregate([
           { $match: opts.match },
           { $sort: opts.sort },
           { $project: {
@@ -322,6 +317,7 @@ module.exports = function (program, conf) {
             high: { $max: '$price' },
             low: { $min: '$price' },
             volume: { $sum: '$size' },
+            latest_trade_time: { $last: '$time' },
             count: { $sum: 1 }
           }},
           /* // could do some more math here for future data to be provided to sims like ohlc4 or close_time
@@ -342,16 +338,38 @@ module.exports = function (program, conf) {
             }},
             */
           { $sort: { '_id': 1 } }
-        ]).toArray(function(err, periods) {
-          if (err) throw err
-          if(!periods.length && opts.match.time['$lt'] >= so.end){
-            engine.exit(exitSim)
+        ]).stream()
+
+        var numPeriods = 0
+        var lastPeriod
+
+        aggregateCursor.on('data', function(period){
+          lastPeriod = period
+          numPeriods++
+          if (so.symmetrical && reversing) {
+            period.orig_time = period.time
+            period.time = reverse_point + (reverse_point - period.time)
           }
-          engine.updatePeriods(periods, function(err) {
-            if (err) throw err
-            cursor = opts.match.time['$lt']
+          eventBus.emit('period', period)
+        })
+
+        aggregateCursor.on('end', function(){
+          if(numPeriods === 0){
+            if (so.symmetrical && !reversing) {
+              reversing = true
+              reverse_point = cursor
+              return getNextPeriods()
+            }
+            engine.exit(exitSim)
+          } else {
+            if (reversing) {
+              cursor = lastPeriod.orig_time
+            }
+            else {
+              cursor = lastPeriod.close_time
+            }
             process.nextTick(getNextPeriods)
-          })
+          }
         })
       }
 
@@ -360,8 +378,7 @@ module.exports = function (program, conf) {
       } else {
         var period_ISO = 'PT'+so.period_length.toUpperCase()
         period_duration = moment.duration(period_ISO).asMilliseconds()
-        hundred_periods = period_duration * 100
-        getNextPeriods(period_duration)
+        getNextPeriods()
       }        
     })
 }
