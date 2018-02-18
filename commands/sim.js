@@ -62,6 +62,8 @@ module.exports = function (program, conf) {
         }
       })
       var tradesCollection = collectionService(conf).getTrades()
+      var simResults = collectionService(conf).getSimResults()
+
       var eventBus = conf.eventBus
 
       if (so.start) {
@@ -207,7 +209,15 @@ module.exports = function (program, conf) {
           fs.writeFileSync(out_target, out)
           console.log('wrote', out_target)
         }
-        process.exit(0)
+
+        simResults.save(options_output)
+          .then(() => {
+            process.exit(0)
+          })
+          .catch((err) => {
+            console.error(err)
+            process.exit(0)
+          })
       }
 
       function getNext () {
