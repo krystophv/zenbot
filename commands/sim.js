@@ -296,7 +296,7 @@ module.exports = function (program, conf) {
         }
         if (cursor) {
           if (!opts.match.time) opts.match.time = {}
-          opts.match.time['$gte'] = cursor
+          opts.match.time['$gt'] = cursor
         }
         else if (query_start) {
           if (!opts.match.time) opts.match.time = {}
@@ -307,12 +307,6 @@ module.exports = function (program, conf) {
         var aggregateCursor = col.aggregate([
           { $match: opts.match },
           { $sort: opts.sort },
-          { $project: {
-            time: 1,
-            size: 1,
-            price: 1,
-            side: 1
-          }},
           { $group: {
             _id: {
               $subtract: [
@@ -349,7 +343,7 @@ module.exports = function (program, conf) {
             }},
             */
           { $sort: { '_id': 1 } }
-        ]).stream()
+        ], { cursor: { batchSize: 10000 } }).stream()
 
         var numPeriods = 0
         var lastPeriod
@@ -377,7 +371,7 @@ module.exports = function (program, conf) {
               cursor = lastPeriod.orig_time
             }
             else {
-              cursor = lastPeriod.close_time
+              cursor = lastPeriod.latest_trade_time
             }
             process.nextTick(getNextPeriods)
           }
