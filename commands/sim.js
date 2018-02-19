@@ -94,6 +94,11 @@ module.exports = function (program, conf) {
       so.selector = objectifySelector(selector || conf.selector)
       so.mode = 'sim'
 
+      if(so.periods_only) {
+        // adjust slippage to compensate for optimistic period simulation
+        so.avg_slippage_pct += 0.01
+      }
+
       var engine = engineFactory(s, conf)
       if (!so.min_periods) so.min_periods = 1
       var cursor, reversing, reverse_point
@@ -295,8 +300,18 @@ module.exports = function (program, conf) {
           opts.match.time = { $lte: so.end }
         }
         if (cursor) {
-          if (!opts.match.time) opts.match.time = {}
-          opts.match.time['$gt'] = cursor
+          if (reversing) {
+            opts.match.time = {}
+            opts.match.time['$lt'] = cursor
+            if (query_start) {
+              opts.match.time['$gte'] = query_start
+            }
+            opts.sort = { time: -1 }
+          }
+          else {
+            if (!opts.match.time) opts.match.time = {}
+            opts.match.time['$gt'] = cursor
+          }
         }
         else if (query_start) {
           if (!opts.match.time) opts.match.time = {}
@@ -342,7 +357,7 @@ module.exports = function (program, conf) {
               ]}
             }},
             */
-          { $sort: { '_id': 1 } }
+          { $sort: { '_id': opts.sort.time } }
         ], { cursor: { batchSize: 10000 } }).stream()
 
         var numPeriods = 0
@@ -352,8 +367,8 @@ module.exports = function (program, conf) {
           lastPeriod = period
           numPeriods++
           if (so.symmetrical && reversing) {
-            period.orig_time = period.time
-            period.time = reverse_point + (reverse_point - period.time)
+            period.orig_time = period._id
+            period._id = reverse_point + (reverse_point - period._id)
           }
           eventBus.emit('period', period)
         })
