@@ -698,22 +698,22 @@ const strategies = {
   },
   macd: {
     // -- common
-    period_length: RangePeriod(1, 120, 'm'),
-    min_periods: Range(1, 200),
-    markdown_buy_pct: RangeFloat(-1, 5),
-    markup_sell_pct: RangeFloat(-1, 5),
+    period_length: RangePeriod(1, 30, 'm'),
+    min_periods: Range(100, 100),
+    markdown_buy_pct: RangeFloat0(0, 0),
+    markup_sell_pct: RangeFloat0(0, 0),
     order_type: RangeMakerTaker(),
-    sell_stop_pct: Range0(1, 50),
-    buy_stop_pct: Range0(1, 50),
-    profit_stop_enable_pct: Range0(1, 20),
-    profit_stop_pct: Range(1,20),
+    sell_stop_pct: RangeFloat(0, 4),
+    buy_stop_pct: RangeFloat0(0, 5),
+    profit_stop_enable_pct: RangeFloat(0, 4),
+    profit_stop_pct: RangeFloat(0, 4),
 
     // -- strategy
     ema_short_period: Range(1, 20),
     ema_long_period: Range(20, 100),
     signal_period: Range(1, 20),
-    up_trend_threshold: Range(0, 50),
-    down_trend_threshold: Range(0, 50),
+    up_trend_threshold: RangeFloat(0, 50),
+    down_trend_threshold: RangeFloat(0, 50),
     overbought_rsi_periods: Range(1, 50),
     overbought_rsi: Range(20, 100)
   },
@@ -1024,7 +1024,7 @@ function generateCommandParams (input)  {
         result = input[key] + result
       } else {
         if(typeof input[key] === 'boolean'){
-          result += ' --'+key
+          result += ` --${input[key] ? '' : 'no-'}${key}`
         }
         else result += ' --'+key+'='+input[key]
       }

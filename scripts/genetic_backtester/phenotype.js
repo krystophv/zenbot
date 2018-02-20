@@ -27,9 +27,9 @@ module.exports = {
         r[k] = (Math.random() * (v.max - v.min)) + v.min
       } else if (v.type === 'float0') {
         r[k] = 0
-      	if (Math.random() >= 0.5) {
-      	  r[k] =(Math.random() * (v.max - v.min)) + v.min
-      	}
+        if (Math.random() >= 0.5) {
+          r[k] =(Math.random() * (v.max - v.min)) + v.min
+        }
       } else if (v.type === 'makertaker') {
         r[k] = (Math.random() > 0.5) ? 'maker' : 'taker'
       } else if (v.type === 'sigmoidtanhrelu') {
