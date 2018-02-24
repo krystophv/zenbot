@@ -18,7 +18,7 @@ module.exports = {
     this.option('oversold_rsi', 'buy when RSI reaches this value', Number, 30)
   },
 
-  calculate: function (s) {
+  calculate: function (/*s*/) {
     
   },
 
@@ -32,9 +32,6 @@ module.exports = {
         s.oversold = true
         if (s.options.mode !== 'sim' || s.options.verbose) console.log(('\noversold at ' + s.period.oversold_rsi + ' RSI, preparing to buy\n').cyan)
       }
-    }
-    if (s.period.trend_ema && s.lookback[0] && s.lookback[0].trend_ema) {
-      s.period.trend_ema_rate = (s.period.trend_ema - s.lookback[0].trend_ema) / s.lookback[0].trend_ema * 100
     }
     if (s.options.neutral_rate === 'auto') {
       stddev(s, 'trend_ema_stddev', Math.floor(s.options.trend_ema / 2), 'trend_ema_rate')
@@ -51,6 +48,20 @@ module.exports = {
         return cb()
       }
     }
+
+    // wait for promise to be resolved
+    // we add all maybe we need more indicators
+    Promise.all([ta_ema(s, s.options.trend_ema)]).then(result => {
+      if(result && result.outReal) {
+        s.period.trend_ema = result.outReal
+      }
+    })
+
+    // calculate ema rate
+    if (s.period.trend_ema && s.lookback[0] && s.lookback[0].trend_ema) {
+      s.period.trend_ema_rate = (s.period.trend_ema - s.lookback[0].trend_ema) / s.lookback[0].trend_ema * 100
+    }
+
     if (typeof s.period.trend_ema_stddev === 'number') {
       if (s.period.trend_ema_rate > s.period.trend_ema_stddev) {
         if (s.trend !== 'up') {
