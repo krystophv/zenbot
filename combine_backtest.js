@@ -16,7 +16,11 @@ glob(__dirname + '/simulations/**/results.json', (err, matches)=>{
     var data = require(file)
     _.forEach(data, (strat_array, strategy) => {
       _.remove(strat_array, function(run){
-        return !run.sim.fitness
+        return (
+          !run.sim.fitness ||
+          run.sim.roi <= 0 ||
+          run.sim.vsBuyHold < 0 
+        )
       })
       console.log(strategy, strat_array.length)
       _.forEach(strat_array, run => {
