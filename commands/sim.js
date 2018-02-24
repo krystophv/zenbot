@@ -99,7 +99,7 @@ module.exports = function (program, conf) {
 
       if(so.periods_only) {
         // adjust slippage to compensate for optimistic period simulation
-        so.avg_slippage_pct += 0.01
+        so.avg_slippage_pct += 0.02
       }
 
       var engine = engineFactory(s, conf)
