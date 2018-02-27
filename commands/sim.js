@@ -278,6 +278,7 @@ module.exports = function (program, conf) {
               return getNext()
             }
             engine.exit(exitSim)
+            return
           } else {
             if (reversing) {
               cursor = lastTrade.orig_time
