@@ -213,7 +213,7 @@ module.exports = function container (conf) {
           order.reject_reason = 'balance'
           return cb(null, order)
         } else if (result && result.error && result.error.match(/^Nonce must be greater/)) {
-            return retry('trade', args)
+          return retry('trade', args)
         }
         if (!err && result.error) {
           err = new Error('unable to ' + type)
