@@ -46,7 +46,7 @@
 
 let Phenotypes = require('../../lib/phenotype')
   , Backtester = require('../../lib/backtester')
-  , argv = require('yargs').argv
+  , argv = require('yargs').boolean('periods_only').boolean('silent').argv
   , moment = require('moment')
   , path = require('path')
   , parallel = require('run-parallel-limit')
