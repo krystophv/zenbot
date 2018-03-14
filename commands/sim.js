@@ -43,6 +43,7 @@ module.exports = function (program, conf) {
     .option('--exact_buy_orders', 'instead of only adjusting maker buy when the price goes up, adjust it if price has changed at all')
     .option('--exact_sell_orders', 'instead of only adjusting maker sell when the price goes down, adjust it if price has changed at all')
     .option('--periods_only', 'only use period data instead of full trade data')
+    .option('--aggregated', 'use preaggregated data')
     .option('--disable_options', 'disable printing of options')
     .option('--enable_stats', 'enable printing order stats')
     .option('--backtester_generation <generation>','creates a json file in simulations with the generation number', Number, -1)
@@ -64,8 +65,10 @@ module.exports = function (program, conf) {
           so[k] = cmd[k]
         }
       })
-      var tradesCollection = collectionService(conf).getTrades()
-      var simResults = collectionService(conf).getSimResults()
+      var collectionServiceInstance = collectionService(conf)
+      var tradesCollection = collectionServiceInstance.getTrades()
+      var simResults = collectionServiceInstance.getSimResults()
+      var aggregateCollection = collectionServiceInstance.getAggregate()
 
       var eventBus = conf.eventBus
 
@@ -84,8 +87,7 @@ module.exports = function (program, conf) {
         so.end = moment().valueOf()
       }
       if (!so.start && so.days) {
-        var d = tb('1d')
-        so.start = d.subtract(so.days).toMilliseconds()
+        so.start = new Date().getTime() - (86400000 * so.days)
       }
 
       so.days = moment(so.end).diff(moment(so.start), 'days')
@@ -94,6 +96,7 @@ module.exports = function (program, conf) {
       so.show_options = !cmd.disable_options
       so.verbose = !!cmd.verbose
       so.periods_only = !!cmd.periods_only
+      so.aggregated = !!cmd.aggregated
       so.selector = objectifySelector(selector || conf.selector)
       so.mode = 'sim'
 
@@ -362,7 +365,7 @@ module.exports = function (program, conf) {
             }},
             */
           { $sort: { '_id': opts.sort.time } }
-        ], { cursor: { batchSize: 10000 } }).stream()
+        ]).stream()
 
         var numPeriods = 0
         var lastPeriod
@@ -397,12 +400,169 @@ module.exports = function (program, conf) {
         })
       }
 
+      function aggregateAggregation() {
+        var opts = {
+          match: {
+            selector: so.selector.normalized
+          },
+          sort: {_id: 1}
+        }
+        if (so.end) {
+          opts.match._id = { $lte: so.end }
+        }
+        if (cursor) {
+          if (reversing) {
+            opts.match._id = {}
+            opts.match._id['$lt'] = cursor
+            if (query_start) {
+              opts.match._id['$gte'] = query_start
+            }
+            opts.sort = { _id: -1 }
+          }
+          else {
+            if (!opts.match._id) opts.match._id = {}
+            opts.match._id['$gt'] = cursor
+          }
+        }
+        else if (query_start) {
+          if (!opts.match._id) opts.match._id = {}
+          opts.match._id['$gte'] = query_start
+        }
+        var aggregateCursor = aggregateCollection.aggregate([
+          { $match: opts.match },
+          { $sort: opts.sort },
+          { $group: {
+            _id: {
+              $subtract: [
+                '$_id',
+                { '$mod': [
+                  '$_id',
+                  period_duration
+                ]}
+              ]
+            },
+            open: { $first: '$open' },
+            close: { $last: '$close' },
+            high: { $max: '$high' },
+            low: { $min: '$low' },
+            volume: { $sum: '$volume' },
+            latest_trade_time: { $last: '$latest_trade_time' },
+            count: { $sum: '$count' }
+          }},
+          { $sort: { '_id': opts.sort._id } }
+        ]).stream()
+
+        var numPeriods = 0
+        var lastPeriod
+
+        aggregateCursor.on('data', function(period){
+          lastPeriod = period
+          numPeriods++
+          if (so.symmetrical && reversing) {
+            period.orig_time = period._id
+            period._id = reverse_point + (reverse_point - period._id)
+          }
+          eventBus.emit('period', period)
+        })
+
+        aggregateCursor.on('end', function(){
+          console.log(numPeriods)
+          if(numPeriods === 0){
+            if (so.symmetrical && !reversing) {
+              reversing = true
+              reverse_point = cursor
+              return aggregateAggregation()
+            }
+            engine.exit(exitSim)
+          } else {
+            if (reversing) {
+              cursor = lastPeriod.orig_time
+            }
+            else {
+              cursor = lastPeriod.latest_trade_time
+            }
+            process.nextTick(aggregateAggregation)
+          }
+        })
+      }
+      /*
+      function getNextAggregates() {
+        var opts = {
+          query: {
+            selector: so.selector.normalized
+          },
+          sort: { _id: 1 }
+        }
+        if (so.end) {
+          opts.query._id = { $lte: so.end }
+        }
+        if (cursor) {
+          if (reversing) {
+            opts.query._id = {}
+            opts.query._id['$lt'] = cursor
+            if (query_start) {
+              opts.query._id['$gte'] = query_start
+            }
+            opts.sort = { _id: -1 }
+          }
+          else {
+            if (!opts.query._id) opts.query._id = {}
+            opts.query._id['$gt'] = cursor
+          }
+        }
+        else if (query_start) {
+          if (!opts.query._id) opts.query._id = {}
+          opts.query._id['$gte'] = query_start
+        }
+        var aggregateCursor = aggregateCollection.find(opts.query).sort(opts.sort).stream()
+        var numPeriods = 0
+        var lastPeriod
+
+        aggregateCursor.on('data', function(period){
+          lastPeriod = period
+          numPeriods++
+          if (so.symmetrical && reversing) {
+            period.orig_time = period._id
+            period._id = reverse_point + (reverse_point - period._id)
+          }
+          eventBus.emit('period', period)
+        })
+
+        aggregateCursor.on('end', function(){
+          console.log(numPeriods)
+          if(numPeriods === 0){
+            if (so.symmetrical && !reversing) {
+              reversing = true
+              reverse_point = cursor
+              return getNextAggregates()
+            }
+            engine.exit(exitSim)
+          } else {
+            if (reversing) {
+              cursor = lastPeriod.orig_time
+            }
+            else {
+              cursor = lastPeriod.latest_trade_time
+            }
+            process.nextTick(getNextAggregates)
+          }
+        })
+      }
+      */
+      var period_ISO
       if(!so.periods_only){
         getNext()  
       } else {
-        var period_ISO = 'PT'+so.period_length.toUpperCase()
-        period_duration = moment.duration(period_ISO).asMilliseconds()
-        getNextPeriods()
+        if(!so.aggregated){
+          period_ISO = 'PT'+so.period_length.toUpperCase()
+          period_duration = moment.duration(period_ISO).asMilliseconds()
+          getNextPeriods()
+        } else {
+          period_ISO = 'PT'+so.period_length.toUpperCase()
+          period_duration = moment.duration(period_ISO).asMilliseconds()
+          aggregateAggregation()
+          //getNextAggregates()
+        }
       }        
     })
 }

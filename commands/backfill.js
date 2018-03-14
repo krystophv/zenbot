@@ -2,6 +2,7 @@ var tb = require('timebucket')
   , crypto = require('crypto')
   , objectifySelector = require('../lib/objectify-selector')
   , collectionService = require('../lib/services/collection-service')
+  , _ = require('lodash')
 
 module.exports = function (program, conf) {
   program
@@ -20,6 +21,48 @@ module.exports = function (program, conf) {
       var collectionServiceInstance = collectionService(conf)
       var tradesCollection = collectionServiceInstance.getTrades()
       var resume_markers = collectionServiceInstance.getResumeMarkers()
+      var aggregateCollection = collectionServiceInstance.getAggregate()
+
+      function flattenMarkers(cb){
+        // merge/flatten resume markers here
+        resume_markers.find({selector: selector.normalized}).toArray(function (err, findResults) {
+          if (err) throw err
+          if (findResults.length === 0) return
+          var stack = []
+          var markers = findResults.sort(function (a, b) {
+            if (a.from < b.from) return -1
+            if (a.from > b.from) return 1
+            return 0
+          })
+          var original_count = markers.length
+          stack.push(markers[0])
+          markers.slice(1).forEach(function(range) {
+            var top = stack[stack.length - 1]
+            if ((top.to + 1) < range.from) { // if the .to of the previous range + 1 == the next range start, then it's contiguous
+            // No overlap, push range onto stack
+              stack.push(range)
+            } else if (top.to < range.to) {
+            // Update previous marker
+              top.to = range.to
+              top.newest_time = range.newest_time
+            }
+          })
+          if(stack.length < original_count){
+            resume_markers.deleteMany({selector: selector.normalized}, function(err /*, deleteResult */){
+              if(err) throw err
+              resume_markers.insert(stack, function(err /*, insertResults */){
+                if(err) throw err
+                console.log(`Compressed ${original_count} markers into ${stack.length} markers`)
+                if(cb) cb()
+              })
+            })
+          } else {
+            if(cb) cb()
+          }
+        })
+      }
+
+      flattenMarkers()
 
       var marker = {
         id: crypto.randomBytes(4).toString('hex'),
@@ -44,6 +87,7 @@ module.exports = function (program, conf) {
       }
       if (mode === 'backward') {
         target_time = new Date().getTime() - (86400000 * cmd.days)
+        start_time = new Date().getTime()
       }
       else {
         target_time = new Date().getTime()
@@ -186,7 +230,10 @@ module.exports = function (program, conf) {
         }
         if (mode === 'backward' && marker.oldest_time <= target_time) {
           console.log('\ndownload complete!\n')
-          process.exit(0)
+          flattenMarkers(()=>{
+            getRequiredAggregateRanges()
+          })
+          return
         }
         if (exchange.backfillRateLimit) {
           setTimeout(getNext, exchange.backfillRateLimit)
@@ -220,6 +267,122 @@ module.exports = function (program, conf) {
         }
         return tradesCollection.save(trade)
       }
+
+      function getRequiredAggregateRanges() {
+        var start_period = tb(target_time).resize('1m').toMilliseconds()
+        var end_period = tb(start_time).resize('1m').toMilliseconds()
+        var expected_periods = _.range(start_period, end_period, 60 * 1000)
+        aggregateCollection.find(
+          { 
+            _id: { $gte: target_time, $lte: start_time },
+            selector: selector.normalized 
+          }, 
+          { 
+            projection: {'_id': 1 } 
+          }).toArray(function(err, results){
+          var actual_aggregates = _.map(results, '_id')
+          var difference = _.difference(expected_periods, actual_aggregates)
+          
+          var ranges = [], rstart, rend
+          for(var i = 0; i < difference.length; i++){
+            rstart = difference[i]
+            rend = rstart
+            while (difference[i+1] - difference[i] === (60 * 1000)){
+              rend = difference[i+1]
+              i++
+            }
+            ranges.push(rstart == rend ? [rstart] : [rstart, rend])
+          }
+          console.log(`Creating aggregates for ${difference.length} periods over ${ranges.length} ranges`)
+          // this just tacks on a period before and after to cover periods that may have been partially filled previously
+          var expanded_ranges = _.map(ranges, (val)=>{
+            if(val.length === 1){
+              return [val[0] - 60000, val[0] + 60000]
+            } else {
+              return [val[0] - 60000, val[1] + 60000]
+            }
+          })
+          // for each of the expanded ranges, do an aggregation/update
+          var aggregate_promises = []
+          _.each(expanded_ranges, (range)=>{
+            aggregate_promises.push(createAggregates(range))
+          })
+          Promise.all(aggregate_promises).then((/*array of bulk write result objects*/)=>{
+            console.log('Aggregates created')
+            process.exit(0)
+          })
+        })
+      }
+
+      function createAggregates(range) {
+        var opts = {
+          match: {
+            selector: selector.normalized,
+            time: { $gte: range[0], $lte: range[1] }
+          },
+          sort: { time: 1 }
+        }
+        var aggregateCursor = tradesCollection.aggregate([
+          { $match: opts.match },
+          { $sort: opts.sort },
+          { $group: {
+            _id: {
+              $subtract: [
+                '$time',
+                { '$mod': [
+                  '$time',
+                  60 * 1000 // 60 second groupings
+                ]}
+              ]
+            },
+            open: { $first: '$price' },
+            close: { $last: '$price' },
+            high: { $max: '$price' },
+            low: { $min: '$price' },
+            volume: { $sum: '$size' },
+            latest_trade_time: { $last: '$time' },
+            count: { $sum: 1 }
+          }},
+          /* // could do some more math here for future data to be provided to sims like ohlc4 or close_time
+            { $project: {
+              _id: 1,
+              open: 1,
+              close: 1,
+              high: 1,
+              low: 1,
+              volume: 1,
+              ohlc4: { $divide: [
+                { $add: [ '$open', '$close', '$high', '$low']},
+                4
+              ]},
+              close_time: { $add: [
+                '$_id', period_duration - 1
+              ]}
+            }},
+            */
+          { $sort: { '_id': opts.sort.time } }
+        ], { cursor: { batchSize: 10000 } }).stream()
+
+        var bulk = aggregateCollection.initializeUnorderedBulkOp(),
+          retPromise = new Promise(function(resolve, reject){
+            aggregateCursor.on('data', function(period){
+              period.selector = selector.normalized
+              bulk.find({_id:period._id}).upsert().updateOne(period)
+            })
+    
+            aggregateCursor.on('end', function(){
+              bulk.execute().then((results)=>{
+                resolve(results)
+              }).catch((err)=>{
+                console.log(err)
+                reject(err)
+              })
+            })
+          })
+
+        return retPromise
+      }
+
     })
 }
 
