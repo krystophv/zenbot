@@ -10,7 +10,7 @@
  * --population_data=<filename>           filename used for continueing backtesting from previous run
  * --generateLaunch=<true>|<false>        will generate .sh and .bat file using the best generation discovered
  * --ignoreLaunchFitness=<true>|<false>   if used with --generateLaunch it will always write a new launch file regardless if latest fitness is greater
- * --floatScanWindow                      Time widow used for analyzing data be adjusted every generation
+ * --floatScanWindow                      Time window used for analyzing data be adjusted every generation
  * --population=<int>                     populate per strategy
  * --maxCores=<int>                       maximum processes to execute at a time default is # of cpu cores in system
  * --selector=<exchange.marketPair>
