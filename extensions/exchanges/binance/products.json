@@ -2818,5 +2818,85 @@
     "increment": "0.00001",
     "asset_increment": "0.01",
     "label": "STORM/BNB"
+  },
+  {
+    "id": "QTUMBNB",
+    "asset": "QTUM",
+    "currency": "BNB",
+    "min_size": "0.01000000",
+    "max_size": "10000.00000000",
+    "increment": "0.00001",
+    "asset_increment": "0.01",
+    "label": "QTUM/BNB"
+  },
+  {
+    "id": "QTUMUSDT",
+    "asset": "QTUM",
+    "currency": "USDT",
+    "min_size": "0.00100000",
+    "max_size": "10000000.00000000",
+    "increment": "0.001",
+    "asset_increment": "0.001",
+    "label": "QTUM/USDT"
+  },
+  {
+    "id": "XEMBTC",
+    "asset": "XEM",
+    "currency": "BTC",
+    "min_size": "1.00000000",
+    "max_size": "100000.00000000",
+    "increment": "0.00000001",
+    "asset_increment": "1.",
+    "label": "XEM/BTC"
+  },
+  {
+    "id": "XEMETH",
+    "asset": "XEM",
+    "currency": "ETH",
+    "min_size": "1.00000000",
+    "max_size": "100000.00000000",
+    "increment": "0.00000001",
+    "asset_increment": "1.",
+    "label": "XEM/ETH"
+  },
+  {
+    "id": "XEMBNB",
+    "asset": "XEM",
+    "currency": "BNB",
+    "min_size": "0.01000000",
+    "max_size": "10000.00000000",
+    "increment": "0.00001",
+    "asset_increment": "0.01",
+    "label": "XEM/BNB"
+  },
+  {
+    "id": "WANBTC",
+    "asset": "WAN",
+    "currency": "BTC",
+    "min_size": "1.00000000",
+    "max_size": "100000.00000000",
+    "increment": "0.00000001",
+    "asset_increment": "1.",
+    "label": "WAN/BTC"
+  },
+  {
+    "id": "WANETH",
+    "asset": "WAN",
+    "currency": "ETH",
+    "min_size": "1.00000000",
+    "max_size": "100000.00000000",
+    "increment": "0.00000001",
+    "asset_increment": "1.",
+    "label": "WAN/ETH"
+  },
+  {
+    "id": "WANBNB",
+    "asset": "WAN",
+    "currency": "BNB",
+    "min_size": "0.01000000",
+    "max_size": "10000.00000000",
+    "increment": "0.00001",
+    "asset_increment": "0.01",
+    "label": "WAN/BNB"
   }
 ]
